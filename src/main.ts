@@ -155,52 +155,38 @@ const findLowestCubes = (piece: Piece): CubeProps[] => {
 };
 
 /**
- * Descends the current piece.
+ * Descends the current piece vertically if possible.
  *
- * @param piece Current piece
- * @returns Updated piece
+ * @param piece The current piece to be descended.
+ * @param gameGrid The 2D array representing the current state of the game grid.
+ * @returns The updated piece after descent.
  */
 const descend = (piece: Piece, gameGrid: CubeProps[][]): Piece => {
+  // Create a copy of the current piece to avoid modifying the original piece
   const updatedPiece = { ...piece };
+  // Find the lowest cubes in each column of the piece
   const lowestCubes = findLowestCubes(updatedPiece);
-
+  // Check if the piece can descend
   const canDescend = lowestCubes.every(cubeProps => {
     const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
     const lowestCubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
+    // Check if there is an empty space below the lowest cube in the grid
     return (
       lowestCubeY < Constants.GRID_HEIGHT - 1 &&
       gameGrid[lowestCubeY + 1][cubeX] === null
     );
-  })
-
-  // // Check if the piece can descend
-  // const canDescend = updatedPiece.cubeList.every(cubeProps => {
-  //   const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
-  //   const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
-  //   const lowestCube = lowestCubes[cubeX];
-  //   const lowestCubeY = Math.floor(Number(lowestCube.y) / Block.HEIGHT);
-
-  //   // Check if cube can descend (not at the bottom and no collision below)
-  //   return (
-  //     cubeY < Constants.GRID_HEIGHT - 1 &&
-  //     (gameGrid[cubeY + 1][cubeX] === null ||
-  //       lowestCube === cubeProps ||
-  //       (lowestCube.y !== cubeProps.y &&
-  //         gameGrid[cubeY + 1][cubeX] !== null))
-  //   );
-  // });
-
+  });
   // Perform cube position updates
   if (canDescend) {
     updatedPiece.cubeList.forEach(cubeProps => {
+      // Move each cube's position downward by one block
       cubeProps.y = String(Number(cubeProps.y) + Block.HEIGHT);
     });
     updatedPiece.static = false; // Set static to false when the piece can descend
   } else {
-    // Mark the piece as static when it cannot descend
     updatedPiece.static = true;
   }
-
+  // Return the updated piece after descent
   return updatedPiece;
 };
 
@@ -212,7 +198,6 @@ const descend = (piece: Piece, gameGrid: CubeProps[][]): Piece => {
  */
 const registerGameGrid = (gameGrid: CubeProps[][], piece: Piece): CubeProps[][] => {
   const updatedGrid = gameGrid.map(row => [...row]); // Create a copy of the gameGrid
-
   // Only register the piece if it is static
   if (piece.static) {
     // Determine the position of the cube
@@ -235,14 +220,18 @@ const registerGameGrid = (gameGrid: CubeProps[][], piece: Piece): CubeProps[][] 
  */
 const checkAndReplacePiece = (currentState: State) => {
   if (currentState.currentPiece.static) {
+    // Generate a new random piece to replace the static current piece.
     const newPiece = getRandomPiece(currentState.storedPieces);
+    // Add the static current piece to the past pieces.
     const updatedPastPieces = currentState.pastPiece.concat(currentState.currentPiece);
+    // Return the updated state with the new piece and updated past pieces.
     return {
       ...currentState,
       currentPiece: newPiece,
       pastPiece: updatedPastPieces,
     };
   }
+  // If the current piece is not static, return the unchanged state.
   return currentState;
 };
 
