@@ -248,7 +248,7 @@ const checkGameOver = (gameGrid: CubeProps[][]): boolean => {
 };
 
 /**
- * Updates the state by descending the current piece.
+ * Updates the state by descending the current piece and checks for game over.
  *
  * @param s Current state
  * @returns Updated state
@@ -258,7 +258,7 @@ const tick = (s: State): State => {
   const updatedPiece = descend(s.currentPiece, s.gameGrid);
   // Update gameGrid with the positions of the current piece's cubeProps
   const updatedGrid = registerGameGrid(s.gameGrid, updatedPiece);
-  // Check if the game is over
+  // Check if the game is over using the checkGameOver function
   const gameEnd = checkGameOver(updatedGrid);
   // Create an updated state with the updatedPiece and gameEnd flag
   const updatedState: State = {
@@ -380,11 +380,11 @@ export function main() {
   const source$ = tick$.pipe(
     scan((s: State) => tick(s), initialState)
   ).subscribe((s: State) => {
-    render(s);
     if (s.gameEnd) {
       show(gameover);
     } else {
       hide(gameover);
+      render(s);
     }
   });
 }
