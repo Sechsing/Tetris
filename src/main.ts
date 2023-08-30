@@ -182,7 +182,6 @@ const descend = (piece: Piece, gameGrid: CubeProps[][]): Piece => {
       // Move each cube's position downward by one block
       cubeProps.y = String(Number(cubeProps.y) + Block.HEIGHT);
     });
-    updatedPiece.static = false; // Set static to false when the piece can descend
   } else {
     updatedPiece.static = true;
   }
@@ -220,19 +219,32 @@ const registerGameGrid = (gameGrid: CubeProps[][], piece: Piece): CubeProps[][] 
  */
 const checkAndReplacePiece = (currentState: State) => {
   if (currentState.currentPiece.static) {
+    // Renew the list of stored pieces
+    const updatedStoredPieces = preparePieces();
     // Generate a new random piece to replace the static current piece.
     const newPiece = getRandomPiece(currentState.storedPieces);
     // Add the static current piece to the past pieces.
     const updatedPastPieces = currentState.pastPiece.concat(currentState.currentPiece);
-    // Return the updated state with the new piece and updated past pieces.
+    // Return the updated state with the new list of stored pieces, new piece and updated past pieces.
     return {
       ...currentState,
+      storedPieces: updatedStoredPieces,
       currentPiece: newPiece,
       pastPiece: updatedPastPieces,
     };
   }
   // If the current piece is not static, return the unchanged state.
   return currentState;
+};
+
+/**
+ * Checks if the game is over by checking if any cube in the top row of the grid is filled.
+ * @param gameGrid The 2D array representing the current state of the game grid.
+ * @returns True if the game is over, false otherwise.
+ */
+const checkGameOver = (gameGrid: CubeProps[][]): boolean => {
+  const topRow = gameGrid[0];
+  return topRow.some(cubeProps => cubeProps !== null);
 };
 
 /**
@@ -246,11 +258,14 @@ const tick = (s: State): State => {
   const updatedPiece = descend(s.currentPiece, s.gameGrid);
   // Update gameGrid with the positions of the current piece's cubeProps
   const updatedGrid = registerGameGrid(s.gameGrid, updatedPiece);
-  // Create an updated state with the updatedPiece
+  // Check if the game is over
+  const gameEnd = checkGameOver(updatedGrid);
+  // Create an updated state with the updatedPiece and gameEnd flag
   const updatedState: State = {
     ...s,
     gameGrid: updatedGrid,
     currentPiece: updatedPiece,
+    gameEnd: gameEnd,
   };
   const stateAfterReplacement = checkAndReplacePiece(updatedState); // Check and replace the piece if needed
   // Return the updated state
