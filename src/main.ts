@@ -119,21 +119,41 @@ type Piece = {
   cubeList: CubeProps[],
 };
 
+const initialStoredPieces = preparePieces(); // Create initial stored pieces
+
 const initialState: State = {
   gameEnd: false,
-  gameGrid: Array.from({length: Constants.GRID_HEIGHT }, () => Array(Constants.GRID_WIDTH).fill(null)),
-  storedPieces: preparePieces(),
-  currentPiece: getRandomPiece(preparePieces()),
+  gameGrid: Array.from(
+    { length: Constants.GRID_HEIGHT },
+    () => Array(Constants.GRID_WIDTH).fill(null)
+  ),
+  storedPieces: [...initialStoredPieces], // Clone the initial stored pieces
+  currentPiece: getRandomPiece(initialStoredPieces), // Get a random piece from the initial stored pieces
   pastPiece: [],
   score: 0,
 };
 
 /**
- * Descends the current piece.
+ * Finds the lowest cubes in each column of a piece.
+ * These cubes are the ones closest to the bottom of each column within the piece.
  *
- * @param piece Current piece
- * @returns Updated piece
+ * @param piece The piece for which to find the lowest cubes.
+ * @returns An array of CubeProps representing the lowest cubes in each column within the piece.
  */
+const findLowestCubes = (piece: Piece): CubeProps[] => {
+  const lowestCubes: CubeProps[] = []; // Initialize an empty array to store the lowest cubes for each column
+  // Loop through each cube in the piece
+  piece.cubeList.forEach(cubeProps => {
+    const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH); // Determine the column position of the cube
+    const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT); // Determine the row position of the cube
+    // Check if there's no lowest cube for this column yet or if the current cube is lower
+    if (!lowestCubes[cubeX] || cubeY > Number(lowestCubes[cubeX].y) / Block.HEIGHT) {
+      lowestCubes[cubeX] = cubeProps; // Update the lowest cube for this column
+    }
+  });
+  return lowestCubes; // Return the array containing the lowest cubes in each column within the piece
+};
+
 /**
  * Descends the current piece.
  *
@@ -141,71 +161,68 @@ const initialState: State = {
  * @returns Updated piece
  */
 const descend = (piece: Piece, gameGrid: CubeProps[][]): Piece => {
-  const updatedCubeList = piece.cubeList.map(cubeProps => {
+  const updatedPiece = { ...piece };
+  const lowestCubes = findLowestCubes(updatedPiece);
+
+  const canDescend = lowestCubes.every(cubeProps => {
     const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
-    const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
+    const lowestCubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
+    return (
+      lowestCubeY < Constants.GRID_HEIGHT - 1 &&
+      gameGrid[lowestCubeY + 1][cubeX] === null
+    );
+  })
 
-    // Check if cube is at the bottom or has another cube below
-    const stop =
-      cubeY >= Constants.GRID_HEIGHT - 1 ||
-      (cubeY + 1 < Constants.GRID_HEIGHT && gameGrid[cubeY + 1][cubeX] !== null);
+  // // Check if the piece can descend
+  // const canDescend = updatedPiece.cubeList.every(cubeProps => {
+  //   const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
+  //   const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
+  //   const lowestCube = lowestCubes[cubeX];
+  //   const lowestCubeY = Math.floor(Number(lowestCube.y) / Block.HEIGHT);
 
-    // Perform cube position updates
-    const newY = stop ? Number(cubeProps.y) : Number(cubeProps.y) + 1 * Block.HEIGHT;
-    return {
-      ...cubeProps,
-      y: String(newY),
-    };
-  });
+  //   // Check if cube can descend (not at the bottom and no collision below)
+  //   return (
+  //     cubeY < Constants.GRID_HEIGHT - 1 &&
+  //     (gameGrid[cubeY + 1][cubeX] === null ||
+  //       lowestCube === cubeProps ||
+  //       (lowestCube.y !== cubeProps.y &&
+  //         gameGrid[cubeY + 1][cubeX] !== null))
+  //   );
+  // });
 
-  // Create and return the updated piece
-  return {
-    ...piece,
-    cubeList: updatedCubeList,
-    static: piece.static || updatedCubeList.some(cubeProps => {
-      const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
-      const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
+  // Perform cube position updates
+  if (canDescend) {
+    updatedPiece.cubeList.forEach(cubeProps => {
+      cubeProps.y = String(Number(cubeProps.y) + Block.HEIGHT);
+    });
+    updatedPiece.static = false; // Set static to false when the piece can descend
+  } else {
+    // Mark the piece as static when it cannot descend
+    updatedPiece.static = true;
+  }
 
-      // Check if there's another cube from the same piece below
-      return (
-        cubeY >= 0 &&
-        cubeY < Constants.GRID_HEIGHT - 1 &&
-        updatedCubeList.some(otherCubeProps => {
-          const otherCubeX = Math.floor(Number(otherCubeProps.x) / Block.WIDTH);
-          const otherCubeY = Math.floor(Number(otherCubeProps.y) / Block.HEIGHT);
-
-          return (
-            cubeX === otherCubeX &&
-            cubeY + 1 === otherCubeY
-          );
-        })
-      );
-    }),
-  };
+  return updatedPiece;
 };
 
 /**
- * Register the pieces in the grid.
+ * Register the piece in the grid when it does not need to move.
  *
  * @param gameGrid An array of CubeProps
  * @returns Updated gameGrid
  */
 const registerGameGrid = (gameGrid: CubeProps[][], piece: Piece): CubeProps[][] => {
   const updatedGrid = gameGrid.map(row => [...row]); // Create a copy of the gameGrid
-  // Determine the position of the cube
-  piece.cubeList.forEach(cubeProps => {
-    const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
-    const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
-    // Adds cubeProps into grid 
-    if (
-      cubeY >= 0 &&
-      cubeY < Constants.GRID_HEIGHT &&
-      cubeX >= 0 &&
-      cubeX < Constants.GRID_WIDTH
-    ) {
+
+  // Only register the piece if it is static
+  if (piece.static) {
+    // Determine the position of the cube
+    piece.cubeList.forEach(cubeProps => {
+      const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
+      const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
+      // Adds cubeProps into grid 
       updatedGrid[cubeY][cubeX] = cubeProps;
-    }
-  });
+    });
+  }
   return updatedGrid;
 };
 
@@ -348,8 +365,9 @@ export function main() {
             svg.namespaceURI, "rect", { ...cubeProps }));
       });
     };
+    // Render the current piece
     if (s.currentPiece !== null) {
-      createPiece(s.currentPiece); // Render the current piece
+      createPiece(s.currentPiece); 
     };
     // Render past pieces
     s.pastPiece.forEach(createPiece);
