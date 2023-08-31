@@ -73,7 +73,7 @@ const preparePieces = (): Piece[] => {
   const Spiece = createPiece("S", [5, 1], [6, 1], [4, 2], [5, 2]);
   const Zpiece = createPiece("Z", [4, 1], [5, 1], [5, 2], [6, 2]);
   // Construct pieces with blocks
-  const storedPieces: Piece[] = [Opiece, Ipiece, Jpiece, Lpiece, Tpiece, Spiece, Zpiece];
+  const storedPieces: Piece[] = [Opiece, Ipiece, Jpiece, Lpiece, Tpiece, Spiece, Zpiece]; 
   return storedPieces;
 };
 
@@ -204,14 +204,17 @@ const movePieceLeft = (state: State): State => {
     return cubeX > 0; // Check if moving left is within the grid boundaries
   });
   if (canMoveLeft && !isCollisionLeft(currentPiece, state.gameGrid)) {
-    currentPiece.cubeList.forEach(cubeProps => {
-      cubeProps.x = String(Number(cubeProps.x) - Block.WIDTH);
-    });
+    const updatedCubeList = currentPiece.cubeList.map(cubeProps => ({
+      ...cubeProps,
+      x: String(Number(cubeProps.x) - Block.WIDTH),
+    }));
+    const updatedPiece = { ...currentPiece, cubeList: updatedCubeList };
+    return {
+      ...state,
+      currentPiece: updatedPiece,
+    };
   }
-  return {
-    ...state,
-    currentPiece: currentPiece,
-  };
+  return state;
 };
 
 /**
@@ -227,21 +230,25 @@ const movePieceRight = (state: State): State => {
     return cubeX < Constants.GRID_WIDTH - 1; // Check if moving right is within the grid boundaries
   });
   if (canMoveRight && !isCollisionRight(currentPiece, state.gameGrid)) {
-    currentPiece.cubeList.forEach(cubeProps => {
-      cubeProps.x = String(Number(cubeProps.x) + Block.WIDTH);
-    });
+    const updatedCubeList = currentPiece.cubeList.map(cubeProps => ({
+      ...cubeProps,
+      x: String(Number(cubeProps.x) + Block.WIDTH),
+    }));
+    const updatedPiece = { ...currentPiece, cubeList: updatedCubeList };
+    return {
+      ...state,
+      currentPiece: updatedPiece,
+    };
   }
-  return {
-    ...state,
-    currentPiece: currentPiece,
-  };
+  return state;
 };
+
 
 /**
  * Handles moving the current piece directly to the bottom position or until it meets another cube below it.
  *
- * @param {State} state - The current state of the game.
- * @returns {State} The updated state after moving the piece to the bottom position.
+ * @param state The current state of the game.
+ * @returns The updated state after moving the piece to the bottom position.
  */
 const movePieceDown = (state: State): State => {
   const updatedPiece = descend(state.currentPiece, state.gameGrid);
@@ -306,31 +313,6 @@ const registerGameGrid = (gameGrid: CubeProps[][], piece: Piece): CubeProps[][] 
 };
 
 /**
- * Replaces the current piece with a random piece if it is static,
- * and adds the static current piece to the past pieces.
- *
- * @param currentState Current state
- * @returns Updated state
- */
-const checkAndReplacePiece = (currentState: State) => {
-  if (currentState.gameEnd === false) {
-    if (currentState.currentPiece.static) {
-      // Renew the list of stored pieces
-      const updatedStoredPieces = preparePieces();
-      // Generate a new random piece to replace the static current piece.
-      const newPiece = getRandomPiece(currentState.storedPieces);
-      // Add the static current piece to the past pieces.
-      return {
-        ...currentState,
-        storedPieces: updatedStoredPieces,
-        currentPiece: newPiece,
-      };
-    }}
-    // If the current piece is not static, return the unchanged state.
-    return currentState;
-};
-
-/**
  * Increases the score for each filled row in the gameGrid.
  *
  * @param gameGrid The 2D array representing the current state of the game grid.
@@ -352,6 +334,17 @@ const increaseScoreForFilledRow = (gameGrid: CubeProps[][], score: number): numb
 };
 
 /**
+ * Checks if the game is over by checking if any cube in the top row of the grid is filled.
+ * @param gameGrid The 2D array representing the current state of the game grid.
+ * @returns True if the game is over, false otherwise.
+ */
+const checkGameOver = (gameGrid: CubeProps[][]): boolean => {
+  const topRow = gameGrid[0];
+  const isGameOver = topRow.some(cubeProps => cubeProps !== null);
+  return isGameOver;
+};
+
+/**
  * Clears filled lines from the game grid by removing completed rows and shifting pieces down.
  *
  * @param state The current state of the game.
@@ -369,23 +362,47 @@ const eliminateRow = (state: State): State => {
   const newRows = Array.from({ length: numberOfRowsToAdd }, () => Array(Constants.GRID_WIDTH).fill(null));
   // Combine the new rows and the remaining grid to create the final updated grid
   const finalGrid = [...newRows, ...updatedGameGrid].slice(0, Constants.GRID_HEIGHT);
+  // Adjust the positions of cubes above the eliminated rows
+  const numRowsDeleted = state.gameGrid.length - updatedGameGrid.length;
+  const updatedGameGridWithAdjustedPositions = finalGrid.map((row, rowIndex) => {
+    const adjustedRow = row.map(cubeProps => {
+      if (cubeProps !== null) {
+        const newY = String(Number(cubeProps.y) + numRowsDeleted * Block.HEIGHT);
+        return { ...cubeProps, y: newY };
+      }
+      return cubeProps;
+    });
+    return adjustedRow;
+  });
   // Create an updated state with the new game grid
   const updatedState: State = {
     ...state,
-    gameGrid: finalGrid,
+    gameGrid: updatedGameGridWithAdjustedPositions,
   };
   return updatedState;
 };
 
 /**
- * Checks if the game is over by checking if any cube in the top row of the grid is filled.
- * @param gameGrid The 2D array representing the current state of the game grid.
- * @returns True if the game is over, false otherwise.
+ * Replaces the current piece with a random piece if it is static,
+ * and adds the static current piece to the past pieces.
+ *
+ * @param currentState Current state
+ * @returns Updated state
  */
-const checkGameOver = (gameGrid: CubeProps[][]): boolean => {
-  const topRow = gameGrid[0];
-  const isGameOver = topRow.some(cubeProps => cubeProps !== null);
-  return isGameOver;
+const checkAndReplacePiece = (currentState: State) => {
+  if (!currentState.gameEnd && currentState.currentPiece.static) {
+    const updatedStoredPieces = preparePieces();
+    const newPiece = getRandomPiece(updatedStoredPieces);
+    const updatedCurrentPiece = newPiece;
+    const updatedStoredPiecesAfterReplace = currentState.storedPieces.concat(currentState.currentPiece);
+    
+    return {
+      ...currentState,
+      storedPieces: updatedStoredPiecesAfterReplace,
+      currentPiece: updatedCurrentPiece,
+    };
+  }
+  return currentState;
 };
 
 /**
@@ -508,16 +525,14 @@ export function main() {
     // Remove SVG elements rendered with past cubes in the current piece
     const existingElements = document.querySelectorAll(".cube");
     existingElements.forEach(element => element.remove());
-    if (s.gameEnd === false) {
-      // Render the current piece by creating and appending new SVG elements
-      s.currentPiece.cubeList.forEach(cubeProps => {
-        const cubeSvg = createSvgElement(
-          svg.namespaceURI, "rect", { ...cubeProps }
-        );
-        cubeSvg.classList.add("cube"); // Add a class to identify the elements
-        svg.appendChild(cubeSvg);
-      });
-    }
+    // Render the current piece by creating and appending new SVG elements
+    s.currentPiece.cubeList.forEach(cubeProps => {
+      const cubeSvg = createSvgElement(
+        svg.namespaceURI, "rect", { ...cubeProps }
+      );
+      cubeSvg.classList.add("cube"); // Add a class to identify the elements
+      svg.appendChild(cubeSvg);
+    });
     // Render the gameGrid
     s.gameGrid.forEach((row, rowIndex) => {
       row.forEach((cubeProps, columnIndex) => {
@@ -530,6 +545,10 @@ export function main() {
         }
       });
     });
+    const scoreTextElement = document.querySelector("#scoreText") as HTMLElement;
+    if (scoreTextElement) {
+      scoreTextElement.textContent = `${s.score}`; // Update to display Score
+    }
   };
 
   const source$ = merge(
