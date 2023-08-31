@@ -148,7 +148,7 @@ const findLowestCubes = (piece: Piece): CubeProps[] => {
     const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT); // Determine the row position of the cube
     // Check if there's no lowest cube for this column yet or if the current cube is lower
     if (!lowestCubes[cubeX] || cubeY > Number(lowestCubes[cubeX].y) / Block.HEIGHT) {
-      lowestCubes[cubeX] = cubeProps; // Update the lowest cube for this column
+      lowestCubes[cubeX] = cubeProps; // Place the lowest cube for this column in the array
     }
   });
   return lowestCubes; // Return the array containing the lowest cubes in each column within the piece
@@ -244,7 +244,8 @@ const checkAndReplacePiece = (currentState: State) => {
  */
 const checkGameOver = (gameGrid: CubeProps[][]): boolean => {
   const topRow = gameGrid[0];
-  return topRow.some(cubeProps => cubeProps !== null);
+  const isGameOver = topRow.some(cubeProps => cubeProps !== null);
+  return isGameOver;
 };
 
 /**
@@ -359,22 +360,27 @@ export function main() {
    * @param s Current state
    */
   const render = (s: State) => {
-    // Clear the canvas before rendering the new frame
-    svg.innerHTML = '';
-    // Creates an SVG element of Piece with the given properties
-    const createPiece = (Piece: Piece) => {
-      const cubeSvgs = Piece.cubeList.map(cubeProps => {
-        svg.appendChild(
-          createSvgElement(
-            svg.namespaceURI, "rect", { ...cubeProps }));
-      });
-    };
-    // Render the current piece
-    if (s.currentPiece !== null) {
-      createPiece(s.currentPiece); 
-    };
+    // Remove SVG elements rendered with past cubes in the current piece
+    const existingElements = document.querySelectorAll(".cube");
+    existingElements.forEach(element => element.remove());
+    // Render the current piece by creating and appending new SVG elements
+    s.currentPiece.cubeList.forEach(cubeProps => {
+      const cubeSvg = createSvgElement(
+        svg.namespaceURI, "rect", { ...cubeProps }
+      );
+      cubeSvg.classList.add("cube"); // Add a class to identify the elements
+      svg.appendChild(cubeSvg);
+    });
     // Render past pieces
-    s.pastPiece.forEach(createPiece);
+    s.pastPiece.forEach(pastPiece => {
+      pastPiece.cubeList.forEach(cubeProps => {
+        const cubeSvg = createSvgElement(
+          svg.namespaceURI, "rect", { ...cubeProps }
+        );
+        cubeSvg.classList.add("cube"); 
+        svg.appendChild(cubeSvg);
+      });
+    });
   };
 
   const source$ = tick$.pipe(
@@ -384,7 +390,7 @@ export function main() {
       show(gameover);
     } else {
       hide(gameover);
-      render(s);
+    render(s);
     }
   });
 }
