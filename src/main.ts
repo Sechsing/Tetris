@@ -137,24 +137,60 @@ const initialState: State = {
 };
 
 /**
- * Finds the lowest cubes in each column of a piece.
- * These cubes are the ones closest to the bottom of each column within the piece.
+ * Checks for collisions in a specific direction for the current piece.
  *
- * @param piece The piece for which to find the lowest cubes.
- * @returns An array of CubeProps representing the lowest cubes in each column within the piece.
+ * @param {Piece} piece - The piece being moved.
+ * @param {CubeProps[][]} gameGrid - The current state of the game grid.
+ * @param {number} offsetX - The offset in the X direction (negative for left, positive for right).
+ * @param {number} offsetY - The offset in the Y direction (positive for downward movement).
+ * @returns {boolean} True if there is a collision, false otherwise.
  */
-const findLowestCubes = (piece: Piece): CubeProps[] => {
-  const lowestCubes: CubeProps[] = []; // Initialize an empty array to store the lowest cubes for each column
-  // Loop through each cube in the piece
-  piece.cubeList.forEach(cubeProps => {
-    const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH); // Determine the column position of the cube
-    const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT); // Determine the row position of the cube
-    // Check if there's no lowest cube for this column yet or if the current cube is lower
-    if (!lowestCubes[cubeX] || cubeY > Number(lowestCubes[cubeX].y) / Block.HEIGHT) {
-      lowestCubes[cubeX] = cubeProps; // Place the lowest cube for this column in the array
-    }
+const isCollision = (piece: Piece, gameGrid: CubeProps[][], offsetX: number, offsetY: number): boolean => {
+  return piece.cubeList.some(cubeProps => {
+    const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
+    const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
+    // Determine the future position of the cube
+    const targetX = cubeX + offsetX;
+    const targetY = cubeY + offsetY;
+    // Check for boundaries and collision with existing blocks
+    return (
+      targetX < 0 || targetX >= Constants.GRID_WIDTH ||
+      targetY >= Constants.GRID_HEIGHT || gameGrid[targetY][targetX] !== null
+    );
   });
-  return lowestCubes; // Return the array containing the lowest cubes in each column within the piece
+};
+
+/**
+ * Checks if there is a collision to the left of the current piece.
+ *
+ * @param {Piece} piece - The piece being moved.
+ * @param {CubeProps[][]} gameGrid - The current state of the game grid.
+ * @returns {boolean} True if there is a collision to the left, false otherwise.
+ */
+const isCollisionLeft = (piece: Piece, gameGrid: CubeProps[][]): boolean => {
+  return isCollision(piece, gameGrid, -1, 0);
+};
+
+/**
+ * Checks if there is a collision to the right of the current piece.
+ *
+ * @param {Piece} piece - The piece being moved.
+ * @param {CubeProps[][]} gameGrid - The current state of the game grid.
+ * @returns {boolean} True if there is a collision to the right, false otherwise.
+ */
+const isCollisionRight = (piece: Piece, gameGrid: CubeProps[][]): boolean => {
+  return isCollision(piece, gameGrid, 1, 0);
+};
+
+/**
+ * Checks if there is a collision below the current piece.
+ *
+ * @param {Piece} piece - The piece being moved.
+ * @param {CubeProps[][]} gameGrid - The current state of the game grid.
+ * @returns {boolean} True if there is a collision below, false otherwise.
+ */
+const isCollisionDown = (piece: Piece, gameGrid: CubeProps[][]): boolean => {
+  return isCollision(piece, gameGrid, 0, 1);
 };
 
 /**
@@ -169,7 +205,7 @@ const movePieceLeft = (state: State): State => {
     const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
     return cubeX > 0; // Check if moving left is within the grid boundaries
   });
-  if (canMoveLeft) {
+  if (canMoveLeft && !isCollisionLeft(currentPiece, state.gameGrid)) {
     currentPiece.cubeList.forEach(cubeProps => {
       cubeProps.x = String(Number(cubeProps.x) - Block.WIDTH);
     });
@@ -192,7 +228,7 @@ const movePieceRight = (state: State): State => {
     const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
     return cubeX < Constants.GRID_WIDTH - 1; // Check if moving right is within the grid boundaries
   });
-  if (canMoveRight) {
+  if (canMoveRight && !isCollisionRight(currentPiece, state.gameGrid)) {
     currentPiece.cubeList.forEach(cubeProps => {
       cubeProps.x = String(Number(cubeProps.x) + Block.WIDTH);
     });
@@ -204,18 +240,42 @@ const movePieceRight = (state: State): State => {
 };
 
 /**
- * Handles moving the current piece downward.
+ * Handles moving the current piece directly to the bottom position or until it meets another cube below it.
  *
  * @param {State} state - The current state of the game.
- * @returns {State} The updated state after moving the piece down if possible.
+ * @returns {State} The updated state after moving the piece to the bottom position.
  */
 const movePieceDown = (state: State): State => {
-  const currentPiece = state.currentPiece;
-  const updatedPiece = descend(currentPiece, state.gameGrid);
+  let updatedPiece = state.currentPiece;
+  // Keep descending the piece until it can't descend anymore
+  while (!isCollisionDown(updatedPiece, state.gameGrid)) {
+    updatedPiece = descend(updatedPiece, state.gameGrid);
+  }
   return {
     ...state,
     currentPiece: updatedPiece,
   };
+};
+
+/**
+ * Finds the lowest cubes in each column of a piece.
+ * These cubes are the ones closest to the bottom of each column within the piece.
+ *
+ * @param piece The piece for which to find the lowest cubes.
+ * @returns An array of CubeProps representing the lowest cubes in each column within the piece.
+ */
+const findLowestCubes = (piece: Piece): CubeProps[] => {
+  const lowestCubes: CubeProps[] = []; // Initialize an empty array to store the lowest cubes for each column
+  // Loop through each cube in the piece
+  piece.cubeList.forEach(cubeProps => {
+    const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH); // Determine the column position of the cube
+    const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT); // Determine the row position of the cube
+    // Check if there's no lowest cube for this column yet or if the current cube is lower
+    if (!lowestCubes[cubeX] || cubeY > Number(lowestCubes[cubeX].y) / Block.HEIGHT) {
+      lowestCubes[cubeX] = cubeProps; // Place the lowest cube for this column in the array
+    }
+  });
+  return lowestCubes; // Return the array containing the lowest cubes in each column within the piece
 };
 
 /**
@@ -282,23 +342,24 @@ const registerGameGrid = (gameGrid: CubeProps[][], piece: Piece): CubeProps[][] 
  * @returns Updated state
  */
 const checkAndReplacePiece = (currentState: State) => {
-  if (currentState.currentPiece.static) {
-    // Renew the list of stored pieces
-    const updatedStoredPieces = preparePieces();
-    // Generate a new random piece to replace the static current piece.
-    const newPiece = getRandomPiece(currentState.storedPieces);
-    // Add the static current piece to the past pieces.
-    const updatedPastPieces = currentState.pastPiece.concat(currentState.currentPiece);
-    // Return the updated state with the new list of stored pieces, new piece and updated past pieces.
-    return {
-      ...currentState,
-      storedPieces: updatedStoredPieces,
-      currentPiece: newPiece,
-      pastPiece: updatedPastPieces,
-    };
-  }
-  // If the current piece is not static, return the unchanged state.
-  return currentState;
+  if (currentState.gameEnd === false) {
+    if (currentState.currentPiece.static) {
+      // Renew the list of stored pieces
+      const updatedStoredPieces = preparePieces();
+      // Generate a new random piece to replace the static current piece.
+      const newPiece = getRandomPiece(currentState.storedPieces);
+      // Add the static current piece to the past pieces.
+      const updatedPastPieces = currentState.pastPiece.concat(currentState.currentPiece);
+      // Return the updated state with the new list of stored pieces, new piece and updated past pieces.
+      return {
+        ...currentState,
+        storedPieces: updatedStoredPieces,
+        currentPiece: newPiece,
+        pastPiece: updatedPastPieces,
+      };
+    }}
+    // If the current piece is not static, return the unchanged state.
+    return currentState;
 };
 
 /**
@@ -452,14 +513,16 @@ export function main() {
     // Remove SVG elements rendered with past cubes in the current piece
     const existingElements = document.querySelectorAll(".cube");
     existingElements.forEach(element => element.remove());
-    // Render the current piece by creating and appending new SVG elements
-    s.currentPiece.cubeList.forEach(cubeProps => {
-      const cubeSvg = createSvgElement(
-        svg.namespaceURI, "rect", { ...cubeProps }
-      );
-      cubeSvg.classList.add("cube"); // Add a class to identify the elements
-      svg.appendChild(cubeSvg);
-    });
+    if (s.gameEnd === false) {
+      // Render the current piece by creating and appending new SVG elements
+      s.currentPiece.cubeList.forEach(cubeProps => {
+        const cubeSvg = createSvgElement(
+          svg.namespaceURI, "rect", { ...cubeProps }
+        );
+        cubeSvg.classList.add("cube"); // Add a class to identify the elements
+        svg.appendChild(cubeSvg);
+      });
+    }
     // Render past pieces
     s.pastPiece.forEach(pastPiece => {
       pastPiece.cubeList.forEach(cubeProps => {
