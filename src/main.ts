@@ -95,7 +95,6 @@ type State = Readonly<{
   gameGrid: CubeProps[][],
   storedPieces: Piece[],
   currentPiece: Piece,
-  pastPiece: Piece[],
   score: number,
 }>;
 
@@ -132,7 +131,6 @@ const initialState: State = {
   ),
   storedPieces: [...initialStoredPieces], // Clone the initial stored pieces
   currentPiece: getRandomPiece(initialStoredPieces), // Get a random piece from the initial stored pieces
-  pastPiece: [],
   score: 0,
 };
 
@@ -322,13 +320,10 @@ const checkAndReplacePiece = (currentState: State) => {
       // Generate a new random piece to replace the static current piece.
       const newPiece = getRandomPiece(currentState.storedPieces);
       // Add the static current piece to the past pieces.
-      const updatedPastPieces = currentState.pastPiece.concat(currentState.currentPiece);
-      // Return the updated state with the new list of stored pieces, new piece and updated past pieces.
       return {
         ...currentState,
         storedPieces: updatedStoredPieces,
         currentPiece: newPiece,
-        pastPiece: updatedPastPieces,
       };
     }}
     // If the current piece is not static, return the unchanged state.
@@ -342,7 +337,7 @@ const checkAndReplacePiece = (currentState: State) => {
  * @param score The current score.
  * @returns The updated score.
  */
-const increaseScoreForFilledRows = (gameGrid: CubeProps[][], score: number): number => {
+const increaseScoreForFilledRow = (gameGrid: CubeProps[][], score: number): number => {
   // Clone the gameGrid to avoid modifying the original grid
   const updatedScore = [...gameGrid].reduce((acc, row) => {
     // Check if all cubeProps in the row are not null (i.e., the row is filled)
@@ -354,6 +349,32 @@ const increaseScoreForFilledRows = (gameGrid: CubeProps[][], score: number): num
     return acc;
   }, score);
   return updatedScore;
+};
+
+/**
+ * Clears filled lines from the game grid by removing completed rows and shifting pieces down.
+ *
+ * @param state The current state of the game.
+ * @returns The updated state of the game after rows are eliminated.
+ */
+const eliminateRow = (state: State): State => {
+  // Store the indices of filled rows
+  const filledRows = state.gameGrid
+    .map((row, rowIndex) => (row.every(cell => cell !== null) ? rowIndex : -1))
+    .filter(index => index !== -1);
+  // Create the updated game grid by filtering out filled rows
+  const updatedGameGrid = state.gameGrid.filter((_, rowIndex) => !filledRows.includes(rowIndex));
+  // Calculate the number of new empty rows to add at the top of the grid
+  const numberOfRowsToAdd = state.gameGrid.length - updatedGameGrid.length;
+  const newRows = Array.from({ length: numberOfRowsToAdd }, () => Array(Constants.GRID_WIDTH).fill(null));
+  // Combine the new rows and the remaining grid to create the final updated grid
+  const finalGrid = [...newRows, ...updatedGameGrid].slice(0, Constants.GRID_HEIGHT);
+  // Create an updated state with the new game grid
+  const updatedState: State = {
+    ...state,
+    gameGrid: finalGrid,
+  };
+  return updatedState;
 };
 
 /**
@@ -379,7 +400,7 @@ const tick = (s: State): State => {
   // Update gameGrid with the positions of the current piece's cubeProps
   const updatedGrid = registerGameGrid(s.gameGrid, updatedPiece);
   // Update score with every filled row
-  const updatedScore = increaseScoreForFilledRows(updatedGrid, s.score);
+  const updatedScore = increaseScoreForFilledRow(updatedGrid, s.score);
   // Check if the game is over using the checkGameOver function
   const gameEnd = checkGameOver(updatedGrid);
   // Create an updated state
@@ -390,8 +411,9 @@ const tick = (s: State): State => {
     gameEnd: gameEnd,
     score: updatedScore,
   };
+  const stateAfterElimination = eliminateRow(updatedState)
   // Check and replace the piece if needed
-  const stateAfterReplacement = checkAndReplacePiece(updatedState); 
+  const stateAfterReplacement = checkAndReplacePiece(stateAfterElimination); 
   // Return the updated state
   return stateAfterReplacement;
 };
@@ -496,14 +518,16 @@ export function main() {
         svg.appendChild(cubeSvg);
       });
     }
-    // Render past pieces
-    s.pastPiece.forEach(pastPiece => {
-      pastPiece.cubeList.forEach(cubeProps => {
-        const cubeSvg = createSvgElement(
-          svg.namespaceURI, "rect", { ...cubeProps }
-        );
-        cubeSvg.classList.add("cube"); 
-        svg.appendChild(cubeSvg);
+    // Render the gameGrid
+    s.gameGrid.forEach((row, rowIndex) => {
+      row.forEach((cubeProps, columnIndex) => {
+        if (cubeProps !== null) {
+          const cubeSvg = createSvgElement(
+            svg.namespaceURI, "rect", { ...cubeProps }
+          );
+          cubeSvg.classList.add("cube");
+          svg.appendChild(cubeSvg);
+        }
       });
     });
   };
