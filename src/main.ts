@@ -246,36 +246,19 @@ const movePieceRight = (state: State): State => {
  * @returns {State} The updated state after moving the piece to the bottom position.
  */
 const movePieceDown = (state: State): State => {
-  let updatedPiece = state.currentPiece;
-  // Keep descending the piece until it can't descend anymore
-  while (!isCollisionDown(updatedPiece, state.gameGrid)) {
-    updatedPiece = descend(updatedPiece, state.gameGrid);
+  const updatedPiece = descend(state.currentPiece, state.gameGrid);
+  if (isCollisionDown(updatedPiece, state.gameGrid)) {
+    // If collision is detected, return the state with the updated piece position
+    return {
+      ...state,
+      currentPiece: updatedPiece,
+    };
   }
-  return {
+  // Recursively call movePieceDown with the updated piece position
+  return movePieceDown({
     ...state,
     currentPiece: updatedPiece,
-  };
-};
-
-/**
- * Finds the lowest cubes in each column of a piece.
- * These cubes are the ones closest to the bottom of each column within the piece.
- *
- * @param piece The piece for which to find the lowest cubes.
- * @returns An array of CubeProps representing the lowest cubes in each column within the piece.
- */
-const findLowestCubes = (piece: Piece): CubeProps[] => {
-  const lowestCubes: CubeProps[] = []; // Initialize an empty array to store the lowest cubes for each column
-  // Loop through each cube in the piece
-  piece.cubeList.forEach(cubeProps => {
-    const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH); // Determine the column position of the cube
-    const cubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT); // Determine the row position of the cube
-    // Check if there's no lowest cube for this column yet or if the current cube is lower
-    if (!lowestCubes[cubeX] || cubeY > Number(lowestCubes[cubeX].y) / Block.HEIGHT) {
-      lowestCubes[cubeX] = cubeProps; // Place the lowest cube for this column in the array
-    }
   });
-  return lowestCubes; // Return the array containing the lowest cubes in each column within the piece
 };
 
 /**
@@ -288,18 +271,8 @@ const findLowestCubes = (piece: Piece): CubeProps[] => {
 const descend = (piece: Piece, gameGrid: CubeProps[][]): Piece => {
   // Create a copy of the current piece to avoid modifying the original piece
   const updatedPiece = { ...piece };
-  // Find the lowest cubes in each column of the piece
-  const lowestCubes = findLowestCubes(updatedPiece);
-  // Check if the piece can descend
-  const canDescend = lowestCubes.every(cubeProps => {
-    const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
-    const lowestCubeY = Math.floor(Number(cubeProps.y) / Block.HEIGHT);
-    // Check if there is an empty space below the lowest cube in the grid
-    return (
-      lowestCubeY < Constants.GRID_HEIGHT - 1 &&
-      gameGrid[lowestCubeY + 1][cubeX] === null
-    );
-  });
+  // Check if the piece can descend using isCollisionDown
+  const canDescend = !isCollisionDown(updatedPiece, gameGrid);
   // Perform cube position updates
   if (canDescend) {
     updatedPiece.cubeList.forEach(cubeProps => {
