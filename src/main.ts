@@ -45,7 +45,7 @@ type Event = "keydown" | "keyup" | "keypress";
 
 /** Utility functions */
 
-/** Added
+/** 
  * Sets ups the current state.
  *
  * @returns Piece[] A list of Pieces
@@ -77,7 +77,7 @@ const preparePieces = (): Piece[] => {
   return storedPieces;
 };
 
-/** Added
+/** 
  * Sets ups the current state.
  *
  * @param storedPieces A list of Pieces that are stored
@@ -99,7 +99,7 @@ type State = Readonly<{
   score: number,
 }>;
 
-/** Added
+/** 
  * Provides an interface for cubes/blocks
  */
 type CubeProps =  {
@@ -110,7 +110,7 @@ type CubeProps =  {
   style: string,
 };
 
-/** Added
+/** 
  * Provides an interface for pieces that consist of cubes
  */
 type Piece = {
@@ -119,7 +119,10 @@ type Piece = {
   cubeList: CubeProps[],
 };
 
-const initialStoredPieces = preparePieces(); // Create initial stored pieces
+/** 
+ * Create initial stored pieces
+ */
+const initialStoredPieces = preparePieces();  
 
 const initialState: State = {
   gameEnd: false,
@@ -152,6 +155,67 @@ const findLowestCubes = (piece: Piece): CubeProps[] => {
     }
   });
   return lowestCubes; // Return the array containing the lowest cubes in each column within the piece
+};
+
+/**
+ * Handles moving the current piece to the left if possible.
+ *
+ * @param {State} state - The current state of the game.
+ * @returns {State} The updated state after moving the piece left if possible.
+ */
+const movePieceLeft = (state: State): State => {
+  const currentPiece = state.currentPiece;
+  const canMoveLeft = currentPiece.cubeList.every(cubeProps => {
+    const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
+    return cubeX > 0; // Check if moving left is within the grid boundaries
+  });
+  if (canMoveLeft) {
+    currentPiece.cubeList.forEach(cubeProps => {
+      cubeProps.x = String(Number(cubeProps.x) - Block.WIDTH);
+    });
+  }
+  return {
+    ...state,
+    currentPiece: currentPiece,
+  };
+};
+
+/**
+ * Handles moving the current piece to the right if possible.
+ *
+ * @param {State} state - The current state of the game.
+ * @returns {State} The updated state after moving the piece right if possible.
+ */
+const movePieceRight = (state: State): State => {
+  const currentPiece = state.currentPiece;
+  const canMoveRight = currentPiece.cubeList.every(cubeProps => {
+    const cubeX = Math.floor(Number(cubeProps.x) / Block.WIDTH);
+    return cubeX < Constants.GRID_WIDTH - 1; // Check if moving right is within the grid boundaries
+  });
+  if (canMoveRight) {
+    currentPiece.cubeList.forEach(cubeProps => {
+      cubeProps.x = String(Number(cubeProps.x) + Block.WIDTH);
+    });
+  }
+  return {
+    ...state,
+    currentPiece: currentPiece,
+  };
+};
+
+/**
+ * Handles moving the current piece downward.
+ *
+ * @param {State} state - The current state of the game.
+ * @returns {State} The updated state after moving the piece down if possible.
+ */
+const movePieceDown = (state: State): State => {
+  const currentPiece = state.currentPiece;
+  const updatedPiece = descend(currentPiece, state.gameGrid);
+  return {
+    ...state,
+    currentPiece: updatedPiece,
+  };
 };
 
 /**
@@ -238,6 +302,27 @@ const checkAndReplacePiece = (currentState: State) => {
 };
 
 /**
+ * Increases the score for each filled row in the gameGrid.
+ *
+ * @param gameGrid The 2D array representing the current state of the game grid.
+ * @param score The current score.
+ * @returns The updated score.
+ */
+const increaseScoreForFilledRows = (gameGrid: CubeProps[][], score: number): number => {
+  // Clone the gameGrid to avoid modifying the original grid
+  const updatedScore = [...gameGrid].reduce((acc, row) => {
+    // Check if all cubeProps in the row are not null (i.e., the row is filled)
+    const isRowFilled = row.every(cubeProps => cubeProps !== null);
+    if (isRowFilled) {
+      // If the row is filled, increment the score by 1
+      return acc + 1;
+    }
+    return acc;
+  }, score);
+  return updatedScore;
+};
+
+/**
  * Checks if the game is over by checking if any cube in the top row of the grid is filled.
  * @param gameGrid The 2D array representing the current state of the game grid.
  * @returns True if the game is over, false otherwise.
@@ -259,16 +344,20 @@ const tick = (s: State): State => {
   const updatedPiece = descend(s.currentPiece, s.gameGrid);
   // Update gameGrid with the positions of the current piece's cubeProps
   const updatedGrid = registerGameGrid(s.gameGrid, updatedPiece);
+  // Update score with every filled row
+  const updatedScore = increaseScoreForFilledRows(updatedGrid, s.score);
   // Check if the game is over using the checkGameOver function
   const gameEnd = checkGameOver(updatedGrid);
-  // Create an updated state with the updatedPiece and gameEnd flag
+  // Create an updated state
   const updatedState: State = {
     ...s,
     gameGrid: updatedGrid,
     currentPiece: updatedPiece,
     gameEnd: gameEnd,
+    score: updatedScore,
   };
-  const stateAfterReplacement = checkAndReplacePiece(updatedState); // Check and replace the piece if needed
+  // Check and replace the piece if needed
+  const stateAfterReplacement = checkAndReplacePiece(updatedState); 
   // Return the updated state
   return stateAfterReplacement;
 };
@@ -383,14 +472,20 @@ export function main() {
     });
   };
 
-  const source$ = tick$.pipe(
-    scan((s: State) => tick(s), initialState)
-  ).subscribe((s: State) => {
+  const source$ = merge(
+    tick$.pipe(map(() => (state: State) => tick(state))),
+    left$.pipe(map(() => (state: State) => movePieceLeft(state))),
+    right$.pipe(map(() => (state: State) => movePieceRight(state))),
+    down$.pipe(map(() => (state: State) => movePieceDown(state)))
+  ).pipe(
+    scan((s: State, action: (s: State) => State) => action(s), initialState)
+  );
+  source$.subscribe((s: State) => {
+    render(s);
     if (s.gameEnd) {
       show(gameover);
     } else {
       hide(gameover);
-    render(s);
     }
   });
 }
