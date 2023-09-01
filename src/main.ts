@@ -14,8 +14,8 @@
 
 import "./style.css";
 
-import { fromEvent, interval, merge } from "rxjs";
-import { map, filter, scan } from "rxjs/operators";
+import { fromEvent, interval, merge, BehaviorSubject } from "rxjs";
+import { map, filter, scan, switchMap, distinctUntilChanged } from "rxjs/operators";
 
 /** Constants */
 
@@ -96,7 +96,9 @@ type State = Readonly<{
   storedPieces: Piece[],
   currentPiece: Piece,
   nextPiece: Piece,
+  level: number,
   score: number,
+  highScore: number,
 }>;
 
 /** 
@@ -133,7 +135,9 @@ const initialState: State = {
   storedPieces: [...initialStoredPieces], // Clone the initial stored pieces
   currentPiece: getRandomPiece(initialStoredPieces), // Get a random piece from the initial stored pieces
   nextPiece: getRandomPiece(initialStoredPieces),
+  level: 0,
   score: 0,
+  highScore: 0,
 };
 
 /**
@@ -244,7 +248,6 @@ const movePieceRight = (state: State): State => {
   }
   return state;
 };
-
 
 /**
  * Handles moving the current piece directly to the bottom position or until it meets another cube below it.
@@ -431,7 +434,9 @@ const restartGame = (state: State): State => {
     storedPieces: [...initialStoredPieces], // Clone the initial stored pieces
     currentPiece: getRandomPiece(initialStoredPieces), // Get a random piece from the initial stored pieces
     nextPiece: getRandomPiece(initialStoredPieces), // Get the next random piece
+    level: 0,
     score: 0, // Initialize the score to 0
+    highScore: 0,
   };
   // Return the updated game state with initial values
   return { ...initialGameState };
@@ -458,6 +463,7 @@ const tick = (s: State): State => {
     gameGrid: updatedGrid,
     currentPiece: updatedPiece,
     gameEnd: gameEnd,
+    level: updatedScore,
     score: updatedScore,
   };
   const stateAfterElimination = eliminateRow(updatedState)
@@ -544,8 +550,28 @@ export function main() {
 
   /** Observables */
 
-  /** Determines the rate of time steps */
-  const tick$ = interval(Constants.TICK_RATE_MS);
+  // Track the score changes with an initial value of 0
+  const scoreSubject = new BehaviorSubject<number>(0);
+
+  // Observable that emits the current score whenever it changes
+  const score$ = scoreSubject.pipe(
+    distinctUntilChanged(), // Only emit when the score changes
+  );
+
+  // Tick rate based on the score
+  const dynamicTick$ = score$.pipe(
+    switchMap(score => {
+      // Calculate the tick rate based on the score (modify this calculation as needed)
+      const maxTickRate = Constants.TICK_RATE_MS; // The initial tick rate
+      const minTickRate = 100; // The minimum tick rate (adjust as needed)
+      const maxScore = 10; // The score at which the tick rate stops decreasing
+      const tickRateRange = maxTickRate - minTickRate;
+      // Calculate the new tick rate based on the score
+      const newTickRate = maxTickRate - (score / maxScore) * tickRateRange;
+      // Ensure the new tick rate does not go below the minimum
+      return interval(newTickRate);
+    })
+  );
 
   /**
    * Renders the current state to the canvas.
@@ -554,7 +580,7 @@ export function main() {
    *
    * @param s Current state
    */
-  const render = (s: State) => {
+  const renderTetris = (s: State) => {
     // Remove SVG elements rendered with past cubes in the current piece
     const existingElements = document.querySelectorAll(".cube");
     existingElements.forEach(element => element.remove());
@@ -567,8 +593,8 @@ export function main() {
       svg.appendChild(cubeSvg);
     });
     // Render the gameGrid
-    s.gameGrid.forEach((row, rowIndex) => {
-      row.forEach((cubeProps, columnIndex) => {
+    s.gameGrid.forEach((row) => {
+      row.forEach((cubeProps) => {
         if (cubeProps !== null) {
           const cubeSvg = createSvgElement(
             svg.namespaceURI, "rect", { ...cubeProps }
@@ -578,6 +604,9 @@ export function main() {
         }
       });
     });
+  }
+
+  const renderHUD = (s: State) => {
     // Render the next piece in the preview canvas
     const nextPiece = s.nextPiece;
     // Clear previous preview content
@@ -589,14 +618,23 @@ export function main() {
       });
       preview.appendChild(cubePreview);
     });
-    // Update to display Score
+    // Display Level
+    if (levelText) {
+      levelText.textContent = `${s.level}`; 
+    }
+    // Display Score
     if (scoreText) {
       scoreText.textContent = `${s.score}`; 
     }
+    // Display HighScore
+    if (highScoreText) {
+      highScoreText.textContent = `${s.highScore}`; 
+    }
+    scoreSubject.next(s.score);
   };
 
   const source$ = merge(
-    tick$.pipe(map(() => (state: State) => tick(state))),
+    dynamicTick$.pipe(map(() => (state: State) => tick(state))),
     left$.pipe(map(() => (state: State) => movePieceLeft(state))),
     right$.pipe(map(() => (state: State) => movePieceRight(state))),
     down$.pipe(map(() => (state: State) => movePieceDown(state))),
@@ -605,7 +643,8 @@ export function main() {
     scan((s: State, action: (s: State) => State) => action(s), initialState)
   );
   source$.subscribe((s: State) => {
-    render(s);
+    renderTetris(s);
+    renderHUD(s);
     if (s.gameEnd) {
       show(gameover);
     } else {
