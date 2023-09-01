@@ -361,20 +361,24 @@ const eliminateRow = (state: State): State => {
   const updatedGameGrid = state.gameGrid.filter((_, rowIndex) => !filledRows.includes(rowIndex));
   // Calculate the number of new empty rows to add at the top of the grid
   const numberOfRowsToAdd = state.gameGrid.length - updatedGameGrid.length;
-  const newRows = Array.from({ length: numberOfRowsToAdd }, () => Array(Constants.GRID_WIDTH).fill(null));
   // Combine the new rows and the remaining grid to create the final updated grid
+  const newRows = Array.from({ length: numberOfRowsToAdd }, () => Array(Constants.GRID_WIDTH).fill(null));
   const finalGrid = [...newRows, ...updatedGameGrid].slice(0, Constants.GRID_HEIGHT);
-  // Adjust the positions of cubes above the eliminated rows
-  const numRowsDeleted = state.gameGrid.length - updatedGameGrid.length;
+  // Create a copy of the final grid to avoid modifying the original grid
   const updatedGameGridWithAdjustedPositions = finalGrid.map((row, rowIndex) => {
-    const adjustedRow = row.map(cubeProps => {
-      if (cubeProps !== null) {
-        const newY = String(Number(cubeProps.y) + numRowsDeleted * Block.HEIGHT);
-        return { ...cubeProps, y: newY };
-      }
-      return cubeProps;
-    });
-    return adjustedRow;
+    // If the row is above the eliminated rows, update cube positions
+    if (rowIndex < state.gameGrid.length - filledRows.length) {
+      const adjustedRow = row.map(cubeProps => {
+        if (cubeProps !== null) {
+          const newY = String(Number(cubeProps.y) + filledRows.length * Block.HEIGHT);
+          return { ...cubeProps, y: newY };
+        }
+        return cubeProps;
+      });
+      return adjustedRow;
+    }
+    // Otherwise, return the row without changes
+    return row;
   });
   // Create an updated state with the new game grid
   const updatedState: State = {
@@ -555,7 +559,7 @@ export function main() {
     nextPiece.cubeList.forEach(cubeProps => {
       const cubePreview = createSvgElement(preview.namespaceURI, "rect", {
         ...cubeProps,
-        x: `${parseInt(cubeProps.x) - Block.WIDTH}`, // Adjust the x position for preview
+        x: `${Number(cubeProps.x) - Block.WIDTH}`, // Adjust the x position for preview
       });
       preview.appendChild(cubePreview);
     });
