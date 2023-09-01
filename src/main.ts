@@ -39,7 +39,7 @@ const Block = {
 
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD";
+type Key = "KeyS" | "KeyA" | "KeyD" | "KeyR";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -73,7 +73,7 @@ const preparePieces = (): Piece[] => {
   const Spiece = createPiece("S", [5, 1], [6, 1], [4, 2], [5, 2]);
   const Zpiece = createPiece("Z", [4, 1], [5, 1], [5, 2], [6, 2]);
   // Construct pieces with blocks
-  const storedPieces: Piece[] = [Opiece, Ipiece, Jpiece, Lpiece, Tpiece, Spiece, Zpiece]; 
+  const storedPieces: Piece[] = [Opiece]; //, Ipiece, Jpiece, Lpiece, Tpiece, Spiece, Zpiece
   return storedPieces;
 };
 
@@ -413,6 +413,31 @@ const checkAndReplacePiece = (currentState: State) => {
 };
 
 /**
+ * Restarts the game by resetting the game state to its initial values.
+ *
+ * @param {State} state - The current state of the game.
+ * @returns {State} - The updated game state with initial values.
+ */
+const restartGame = (state: State): State => {
+  // Create a list of initial stored pieces
+  const initialStoredPieces = preparePieces();
+  // Define the initial game state
+  const initialGameState = {
+    gameEnd: false, // The game is not over
+    gameGrid: Array.from(
+      { length: Constants.GRID_HEIGHT },
+      () => Array(Constants.GRID_WIDTH).fill(null)
+    ), // Create an empty game grid
+    storedPieces: [...initialStoredPieces], // Clone the initial stored pieces
+    currentPiece: getRandomPiece(initialStoredPieces), // Get a random piece from the initial stored pieces
+    nextPiece: getRandomPiece(initialStoredPieces), // Get the next random piece
+    score: 0, // Initialize the score to 0
+  };
+  // Return the updated game state with initial values
+  return { ...initialGameState };
+};
+
+/**
  * Updates the state by descending the current piece and checks for game over.
  *
  * @param s Current state
@@ -515,6 +540,7 @@ export function main() {
   const left$ = fromKey("KeyA");
   const right$ = fromKey("KeyD");
   const down$ = fromKey("KeyS");
+  const restart$ = fromKey("KeyR")
 
   /** Observables */
 
@@ -573,7 +599,8 @@ export function main() {
     tick$.pipe(map(() => (state: State) => tick(state))),
     left$.pipe(map(() => (state: State) => movePieceLeft(state))),
     right$.pipe(map(() => (state: State) => movePieceRight(state))),
-    down$.pipe(map(() => (state: State) => movePieceDown(state)))
+    down$.pipe(map(() => (state: State) => movePieceDown(state))),
+    restart$.pipe(map(() => (state: State) => restartGame(state)))
   ).pipe(
     scan((s: State, action: (s: State) => State) => action(s), initialState)
   );
