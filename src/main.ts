@@ -383,22 +383,22 @@ const eliminateRow = (state: State): State => {
 };
 
 /**
- * Replaces the current piece with a random piece if it is static,
- * and adds the static current piece to the past pieces.
+ * Replaces the current piece with a random piece if it is static and the game is not over yet.
  *
  * @param currentState Current state
  * @returns Updated state
  */
 const checkAndReplacePiece = (currentState: State) => {
+  // Check if the game has not ended and the current piece is static
   if (!currentState.gameEnd && currentState.currentPiece.static) {
+    // Update the list of available pieces
     const updatedStoredPieces = preparePieces();
-    const newPiece = getRandomPiece(updatedStoredPieces);
+    // Get a random piece from the updated list of available pieces
+    const newPiece = getRandomPiece(updatedStoredPieces)
+    // Update the current piece with the new random piece
     const updatedCurrentPiece = newPiece;
-    const updatedStoredPiecesAfterReplace = currentState.storedPieces.concat(currentState.currentPiece);
-    
     return {
       ...currentState,
-      storedPieces: updatedStoredPiecesAfterReplace,
       currentPiece: updatedCurrentPiece,
     };
   }
