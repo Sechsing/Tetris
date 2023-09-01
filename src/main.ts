@@ -548,9 +548,20 @@ export function main() {
         }
       });
     });
-    const scoreTextElement = document.querySelector("#scoreText") as HTMLElement;
-    if (scoreTextElement) {
-      scoreTextElement.textContent = `${s.score}`; // Update to display Score
+    // Render the next piece in the preview canvas
+    const nextPiece = s.nextPiece;
+    // Clear previous preview content
+    preview.innerHTML = ""; 
+    nextPiece.cubeList.forEach(cubeProps => {
+      const cubePreview = createSvgElement(preview.namespaceURI, "rect", {
+        ...cubeProps,
+        x: `${parseInt(cubeProps.x) - Block.WIDTH}`, // Adjust the x position for preview
+      });
+      preview.appendChild(cubePreview);
+    });
+    // Update to display Score
+    if (scoreText) {
+      scoreText.textContent = `${s.score}`; 
     }
   };
 
