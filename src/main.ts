@@ -95,6 +95,7 @@ type State = Readonly<{
   gameGrid: CubeProps[][],
   storedPieces: Piece[],
   currentPiece: Piece,
+  nextPiece: Piece,
   score: number,
 }>;
 
@@ -131,6 +132,7 @@ const initialState: State = {
   ),
   storedPieces: [...initialStoredPieces], // Clone the initial stored pieces
   currentPiece: getRandomPiece(initialStoredPieces), // Get a random piece from the initial stored pieces
+  nextPiece: getRandomPiece(initialStoredPieces),
   score: 0,
 };
 
@@ -383,7 +385,7 @@ const eliminateRow = (state: State): State => {
 };
 
 /**
- * Replaces the current piece with a random piece if it is static and the game is not over yet.
+ * Replaces the current piece with next piece and next piece with random piece if current piece is static and the game is not over.
  *
  * @param currentState Current state
  * @returns Updated state
@@ -394,12 +396,13 @@ const checkAndReplacePiece = (currentState: State) => {
     // Update the list of available pieces
     const updatedStoredPieces = preparePieces();
     // Get a random piece from the updated list of available pieces
-    const newPiece = getRandomPiece(updatedStoredPieces)
-    // Update the current piece with the new random piece
-    const updatedCurrentPiece = newPiece;
+    const updatedNextPiece = getRandomPiece(updatedStoredPieces)
+    // Update the current piece with next piece
+    const updatedCurrentPiece = currentState.nextPiece;
     return {
       ...currentState,
       currentPiece: updatedCurrentPiece,
+      nextPiece: updatedNextPiece,
     };
   }
   return currentState;
