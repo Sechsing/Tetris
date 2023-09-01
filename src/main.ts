@@ -318,13 +318,14 @@ const registerGameGrid = (gameGrid: CubeProps[][], piece: Piece): CubeProps[][] 
 };
 
 /**
- * Increases the score for each filled row in the gameGrid.
+ * Adjusts the score and highest score for each filled row in the gameGrid.
  *
  * @param gameGrid The 2D array representing the current state of the game grid.
  * @param score The current score.
- * @returns The updated score.
+ * @param highScore The current highest score.
+ * @returns The updated score and the updated highest score.
  */
-const increaseScoreForFilledRow = (gameGrid: CubeProps[][], score: number): number => {
+const ScoreAdjustment = (gameGrid: CubeProps[][], score: number, highScore: number): { updatedScore: number; updatedHighScore: number } => {
   // Clone the gameGrid to avoid modifying the original grid
   const updatedScore = [...gameGrid].reduce((acc, row) => {
     // Check if all cubeProps in the row are not null (i.e., the row is filled)
@@ -335,7 +336,8 @@ const increaseScoreForFilledRow = (gameGrid: CubeProps[][], score: number): numb
     }
     return acc;
   }, score);
-  return updatedScore;
+  const updatedHighScore = (updatedScore > highScore) ? updatedScore : highScore;
+  return {updatedScore, updatedHighScore};
 };
 
 /**
@@ -426,6 +428,7 @@ const restartGame = (state: State): State => {
   const initialStoredPieces = preparePieces();
   // Define the initial game state
   const initialGameState = {
+    ...state,
     gameEnd: false, // The game is not over
     gameGrid: Array.from(
       { length: Constants.GRID_HEIGHT },
@@ -436,7 +439,6 @@ const restartGame = (state: State): State => {
     nextPiece: getRandomPiece(initialStoredPieces), // Get the next random piece
     level: 0,
     score: 0, // Initialize the score to 0
-    highScore: 0,
   };
   // Return the updated game state with initial values
   return { ...initialGameState };
@@ -454,7 +456,7 @@ const tick = (s: State): State => {
   // Update gameGrid with the positions of the current piece's cubeProps
   const updatedGrid = registerGameGrid(s.gameGrid, updatedPiece);
   // Update score with every filled row
-  const updatedScore = increaseScoreForFilledRow(updatedGrid, s.score);
+  const { updatedScore, updatedHighScore } = ScoreAdjustment(updatedGrid, s.score, s.highScore);
   // Check if the game is over using the checkGameOver function
   const gameEnd = checkGameOver(updatedGrid);
   // Create an updated state
@@ -465,6 +467,7 @@ const tick = (s: State): State => {
     gameEnd: gameEnd,
     level: updatedScore,
     score: updatedScore,
+    highScore: updatedHighScore
   };
   const stateAfterElimination = eliminateRow(updatedState)
   // Check and replace the piece if needed
