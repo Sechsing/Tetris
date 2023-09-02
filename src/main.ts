@@ -39,7 +39,7 @@ const Block = {
 
 /** User input */
 
-type Key = "KeyS" | "KeyA" | "KeyD" | "KeyR";
+type Key = "KeyS" | "KeyA" | "KeyD" | "KeyW" | "KeyR";
 
 type Event = "keydown" | "keyup" | "keypress";
 
@@ -162,7 +162,8 @@ const isCollision = (piece: Piece, gameGrid: CubeProps[][], offsetX: number, off
     // Check for boundaries and collision with existing blocks
     return (
       targetX < 0 || targetX >= Constants.GRID_WIDTH ||
-      targetY >= Constants.GRID_HEIGHT || gameGrid[targetY][targetX] !== null
+      targetY < 0 || targetY >= Constants.GRID_HEIGHT || 
+      gameGrid[targetY][targetX] !== null
     );
   });
 };
@@ -272,6 +273,60 @@ const movePieceDown = (state: State): State => {
     ...state,
     currentPiece: updatedPiece,
   });
+};
+
+/**
+ * Rotates a Tetris piece clockwise around its center of rotation if no collision is detected.
+ *
+ * @param {Piece} piece - The piece to be rotated.
+ * @returns {Piece} - The rotated piece (if no collision).
+ */
+const rotatePieceTemporarily = (piece: Piece): Piece => {
+  const rotatedPiece: Piece = { ...piece };
+  // Calculate the center of rotation for the piece
+  const centerX: number = Number(piece.cubeList[0].x);
+  const centerY: number = Number(piece.cubeList[0].y);
+  // Temporarily apply the rotation to each cube in the piece
+  rotatedPiece.cubeList = piece.cubeList.map((cubeProps: CubeProps) => {
+    const x: number = Number(cubeProps.x) + Block.WIDTH / 2;
+    const y: number = Number(cubeProps.y) + Block.HEIGHT / 2;
+    // Calculate the new coordinates after rotation around the center
+    const deltaX: number = x - centerX;
+    const deltaY: number = y - centerY;
+    const newX: number = centerX + deltaY;
+    const newY: number = centerY - deltaX;
+    return {
+      ...cubeProps,
+      x: String(newX - Block.WIDTH / 2),
+      y: String(newY - Block.HEIGHT / 2),
+    };
+  });
+  return rotatedPiece;
+};
+
+/**
+ * Rotates a Tetris piece clockwise around its center of rotation if no collision is detected.
+ *
+ * @param {State} state - The current state of the game.
+ * @returns {State} - The updated state after rotating the piece (if no collision).
+ */
+const rotatePiece = (state: State): State => {
+  const currentPiece: Piece = state.currentPiece;
+  // Temporarily rotate the current piece
+  const rotatedPiece: Piece = rotatePieceTemporarily(currentPiece);
+  // Check for collisions after the temporary rotation in all directions
+  const collisionLeft = isCollisionLeft(rotatedPiece, state.gameGrid);
+  const collisionRight = isCollisionRight(rotatedPiece, state.gameGrid);
+  const collisionDown = isCollisionDown(rotatedPiece, state.gameGrid);
+  if (!collisionLeft && !collisionRight && !collisionDown) {
+    // If no collisions in any direction, update the current piece in the state
+    return {
+      ...state,
+      currentPiece: rotatedPiece,
+    };
+  }
+  // If there's a collision in any direction after rotation, return the current state
+  return state;
 };
 
 /**
@@ -528,8 +583,14 @@ export function main() {
   const right$ = fromKey("KeyD");
   const down$ = fromKey("KeyS");
   const restart$ = fromKey("KeyR")
+  const rotate$ = fromKey("KeyW");
 
   /** Observables */
+
+  // Map the "rotate" key press event to the rotatePiece function
+  const rotateAction$ = rotate$.pipe(
+    map(() => (state: State) => rotatePiece(state))
+  );
 
   // Track the score changes with an initial value of 0
   const scoreSubject = new BehaviorSubject<number>(0);
@@ -629,6 +690,7 @@ export function main() {
     right$.pipe(map(() => (state: State) => movePieceRight(state))),
     // When down$ emits, map it to move the current piece downward.
     down$.pipe(map(() => (state: State) => movePieceDown(state))),
+    rotateAction$,
     // When restart$ emits, map it to restart the game.
     restart$.pipe(map(() => (state: State) => restartGame(state)))
   ).pipe(
