@@ -72,7 +72,7 @@ const preparePieces = (): Piece[] => {
   const Spiece = createPiece([5, 1], [6, 1], [4, 2], [5, 2]);
   const Zpiece = createPiece([4, 1], [5, 1], [5, 2], [6, 2]);
   // Construct pieces with blocks
-  const storedPieces: Piece[] = [Opiece]; //, Ipiece, Jpiece, Lpiece, Tpiece, Spiece, Zpiece
+  const storedPieces: Piece[] = [Opiece, Ipiece, Jpiece, Lpiece, Tpiece, Spiece, Zpiece];
   return storedPieces;
 };
 
@@ -253,7 +253,7 @@ const movePieceRight = (state: State): State => {
 };
 
 /**
- * Handles moving the current piece directly to the bottom position or until it meets another cube below it.
+ * Move the current piece directly to the bottom position or until it meets another cube below it.
  *
  * @param state The current state of the game.
  * @returns The updated state after moving the piece to the bottom position.
@@ -275,7 +275,7 @@ const movePieceDown = (state: State): State => {
 };
 
 /**
- * Descends the current piece vertically if possible.
+ * Descends the current piece if possible.
  *
  * @param piece The current piece to be descended.
  * @param gameGrid The 2D array representing the current state of the game grid.
@@ -321,7 +321,7 @@ const registerGameGrid = (gameGrid: CubeProps[][], piece: Piece): CubeProps[][] 
 };
 
 /**
- * Adjusts the score and highest score for each filled row in the gameGrid.
+ * Adjusts the score and highest score for each completed row in the gameGrid.
  *
  * @param gameGrid The 2D array representing the current state of the game grid.
  * @param score The current score.
@@ -353,46 +353,24 @@ const checkGameOver = (gameGrid: CubeProps[][]): boolean => {
 };
 
 /**
- * Clears filled lines from the game grid by removing completed rows and shifting pieces down.
+ * Eliminate rows in the game grid by removing completed rows and shifting pieces down.
  *
  * @param state The current state of the game.
  * @returns The updated state of the game after rows are eliminated.
  */
-const eliminateRow = (state: State): State => {
-  // Store the indices of filled rows
-  const filledRows = state.gameGrid
-    .map((row, rowIndex) => (row.every(cell => cell !== null) ? rowIndex : -1))
-    .filter(index => index !== -1);
-  // Create the updated game grid by filtering out filled rows
-  const updatedGameGrid = state.gameGrid.filter((_, rowIndex) => !filledRows.includes(rowIndex));
-  // Calculate the number of new empty rows to add at the top of the grid
-  const numberOfRowsToAdd = state.gameGrid.length - updatedGameGrid.length;
-  // Combine the new rows and the remaining grid to create the final updated grid
-  const newRows = Array.from({ length: numberOfRowsToAdd }, () => Array(Constants.GRID_WIDTH).fill(null));
-  const finalGrid = [...newRows, ...updatedGameGrid].slice(0, Constants.GRID_HEIGHT);
-  // Create a copy of the final grid to avoid modifying the original grid
-  const updatedGameGridWithAdjustedPositions = finalGrid.map((row, rowIndex) => {
-    // If the row is above the eliminated rows, update cube positions
-    if (rowIndex < state.gameGrid.length - filledRows.length) {
-      const adjustedRow = row.map(cubeProps => {
-        if (cubeProps !== null) {
-          const newY = String(Number(cubeProps.y) + filledRows.length * Block.HEIGHT);
-          return { ...cubeProps, y: newY };
-        }
-        return cubeProps;
-      });
-      return adjustedRow;
-    }
-    // Otherwise, return the row without changes
-    return row;
-  });
-  // Create an updated state with the new game grid
+function eliminateRow(s: State): State {
+  // Filter out any rows that are completely filled
+  const updatedGameGrid = s.gameGrid.filter(row => row.some(grid => grid === null));
+  // Get the number of eliminated rows
+  const clearedLines = s.gameGrid.length - updatedGameGrid.length;
+  // Create new rows filled with null to replace eliminated rows
+  const newRows = Array.from({ length: clearedLines }, () => Array(Constants.GRID_WIDTH).fill(null));
   const updatedState: State = {
-    ...state,
-    gameGrid: updatedGameGridWithAdjustedPositions,
+    ...s,
+    gameGrid: [...newRows, ...updatedGameGrid],
   };
   return updatedState;
-};
+}
 
 /**
  * Replaces the current piece with next piece and next piece with random piece if current piece is static and the game is not over.
@@ -445,7 +423,7 @@ const restartGame = (state: State): State => {
 };
 
 /**
- * Updates the state by descending the current piece and checks for game over.
+ * Updates the state by calling miscellaneous functions.
  *
  * @param s Current state
  * @returns Updated state
@@ -455,7 +433,7 @@ const tick = (s: State): State => {
   const updatedPiece = descend(s.currentPiece, s.gameGrid);
   // Update gameGrid with the positions of the current piece's cubeProps
   const updatedGrid = registerGameGrid(s.gameGrid, updatedPiece);
-  // Update score with every filled row
+  // Update score with every completed row
   const { updatedScore, updatedHighScore } = ScoreAdjustment(updatedGrid, s.score, s.highScore);
   // Check if the game is over using the checkGameOver function
   const gameEnd = checkGameOver(updatedGrid);
@@ -564,15 +542,16 @@ export function main() {
   // Tick rate based on the score
   const dynamicTick$ = score$.pipe(
     switchMap(score => {
-      // Calculate the tick rate based on the score (modify this calculation as needed)
+      // Calculate the tick rate based on the score
       const maxTickRate = Constants.TICK_RATE_MS; // The initial tick rate
-      const minTickRate = 100; // The minimum tick rate (adjust as needed)
+      const minTickRate = 100; // The minimum tick rate 
       const maxScore = 10; // The score at which the tick rate stops decreasing
       const tickRateRange = maxTickRate - minTickRate;
       // Calculate the new tick rate based on the score
       const newTickRate = maxTickRate - (score / maxScore) * tickRateRange;
       // Ensure the new tick rate does not go below the minimum
-      return interval(newTickRate);
+      const TickRate = Math.min(minTickRate, newTickRate)
+      return interval(TickRate);
     })
   );
 
@@ -587,6 +566,22 @@ export function main() {
     // Remove SVG elements rendered with past cubes in the current piece
     const existingElements = document.querySelectorAll(".cube");
     existingElements.forEach(element => element.remove());
+    // Render the cubes in the gameGrid, including those in the current piece
+    s.gameGrid.forEach((row, rowIndex) => {
+      row.forEach((cubeProps, columnIndex) => {
+        if (cubeProps !== null) {
+          const cubeSvg = createSvgElement(
+            svg.namespaceURI, "rect", { ...cubeProps }
+          );
+          cubeSvg.classList.add("cube");
+          // Adjust the y position based on the row index
+          cubeSvg.setAttribute("y", String(Block.HEIGHT * rowIndex));
+          // Adjust the x position based on the column index
+          cubeSvg.setAttribute("x", String(Block.WIDTH * columnIndex));
+          svg.appendChild(cubeSvg);
+        }
+      });
+    });
     // Render the current piece by creating and appending new SVG elements
     s.currentPiece.cubeList.forEach(cubeProps => {
       const cubeSvg = createSvgElement(
@@ -594,18 +589,6 @@ export function main() {
       );
       cubeSvg.classList.add("cube"); // Add a class to identify the elements
       svg.appendChild(cubeSvg);
-    });
-    // Render the cubes in the gameGrid
-    s.gameGrid.forEach((row) => {
-      row.forEach((cubeProps) => {
-        if (cubeProps !== null) {
-          const cubeSvg = createSvgElement(
-            svg.namespaceURI, "rect", { ...cubeProps }
-          );
-          cubeSvg.classList.add("cube");
-          svg.appendChild(cubeSvg);
-        }
-      });
     });
   }
 
@@ -636,18 +619,29 @@ export function main() {
     scoreSubject.next(s.score);
   };
 
+  // Observable that represents the game logic and user input processing.
   const source$ = merge(
+    // When dynamicTick$ emits, map it to a function that advances the game state by one tick.
     dynamicTick$.pipe(map(() => (state: State) => tick(state))),
+    // When left$ emits, map it to move the current piece to the left.
     left$.pipe(map(() => (state: State) => movePieceLeft(state))),
+    // When right$ emits, map it to move the current piece to the right.
     right$.pipe(map(() => (state: State) => movePieceRight(state))),
+    // When down$ emits, map it to move the current piece downward.
     down$.pipe(map(() => (state: State) => movePieceDown(state))),
+    // When restart$ emits, map it to restart the game.
     restart$.pipe(map(() => (state: State) => restartGame(state)))
   ).pipe(
+    // Accumulate and update the game state based on the mapped functions.
     scan((s: State, action: (s: State) => State) => action(s), initialState)
   );
+  // Subscribe to the source$ to react to changes in the game state.
   source$.subscribe((s: State) => {
+    // Update the game visuals on the canvas based on the current game state.
     renderTetris(s);
+    // Update the Heads-Up Display (HUD) to display game information.
     renderHUD(s);
+    // Show the 'gameover' element if the game has ended; otherwise, hide it.
     if (s.gameEnd) {
       show(gameover);
     } else {
