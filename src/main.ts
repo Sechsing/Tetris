@@ -60,17 +60,18 @@ const preparePieces = (): Piece[] => {
     style: "fill: green",
   });
   // Construct pieces with blocks
-  const createPiece = (...positions: [number, number][]) => ({
+  const createPiece = (shape: string, ...positions: [number, number][]) => ({
+    shape: shape,
     static: false,
     cubeList: positions.map(pos => createCube(...pos)),
   });
-  const Opiece = createPiece([5, 1], [6, 1], [5, 2], [6, 2]);
-  const Ipiece = createPiece([6, 1], [6, 2], [6, 3], [6, 4]);
-  const Jpiece = createPiece([4, 1], [5, 1], [6, 1], [6, 2]);
-  const Lpiece = createPiece([4, 1], [5, 1], [6, 1], [4, 2]);
-  const Tpiece = createPiece([4, 1], [5, 1], [6, 1], [5, 2]);
-  const Spiece = createPiece([5, 1], [6, 1], [4, 2], [5, 2]);
-  const Zpiece = createPiece([4, 1], [5, 1], [5, 2], [6, 2]);
+  const Opiece = createPiece("O", [5, 1], [6, 1], [5, 2], [6, 2]);
+  const Ipiece = createPiece("I", [6, 1], [6, 2], [6, 3], [6, 4]);
+  const Jpiece = createPiece("J", [4, 1], [5, 1], [6, 1], [6, 2]);
+  const Lpiece = createPiece("L", [4, 1], [5, 1], [6, 1], [4, 2]);
+  const Tpiece = createPiece("T", [4, 1], [5, 1], [6, 1], [5, 2]);
+  const Spiece = createPiece("S", [5, 1], [6, 1], [4, 2], [5, 2]);
+  const Zpiece = createPiece("Z", [4, 1], [5, 1], [5, 2], [6, 2]);
   // Construct pieces with blocks
   const storedPieces: Piece[] = [Opiece, Ipiece, Jpiece, Lpiece, Tpiece, Spiece, Zpiece];
   return storedPieces;
@@ -115,6 +116,7 @@ type CubeProps =  {
  * Provides an interface for pieces that consist of cubes
  */
 type Piece = {
+  shape: string,
   static: boolean,
   cubeList: CubeProps[],
 };
@@ -276,7 +278,7 @@ const movePieceDown = (state: State): State => {
 };
 
 /**
- * Rotates a Tetris piece clockwise around its center of rotation if no collision is detected.
+ * Rotates a Tetris piece clockwise around its center of rotation following the Super Rotation System (SRS) if no collision is detected.
  *
  * @param {Piece} piece - The piece to be rotated.
  * @returns {Piece} - The rotated piece if there is no collision.
@@ -305,27 +307,31 @@ const rotatePieceTemporarily = (piece: Piece): Piece => {
 };
 
 /**
- * Rotates a Tetris piece clockwise around its center of rotation if no collision is detected.
+ * Rotates a Tetris piece clockwise around its center of rotation following the Super Rotation System (SRS) if no collision is detected.
  *
  * @param {State} state - The current state of the game.
  * @returns {State} - The updated state after rotating the piece if there is no collision.
  */
 const rotatePiece = (state: State): State => {
   const currentPiece: Piece = state.currentPiece;
-  // Temporarily rotate the current piece
-  const rotatedPiece: Piece = rotatePieceTemporarily(currentPiece);
-  // Check for collisions after the temporary rotation in all directions
-  const collisionLeft = isCollisionLeft(rotatedPiece, state.gameGrid);
-  const collisionRight = isCollisionRight(rotatedPiece, state.gameGrid);
-  const collisionDown = isCollisionDown(rotatedPiece, state.gameGrid);
-  if (!collisionLeft && !collisionRight && !collisionDown) {
-    // If no collisions in any direction, update the current piece in the state
-    return {
-      ...state,
-      currentPiece: rotatedPiece,
-    };
+  // Check if the current piece is not an "O" piece (which doesn't rotate)
+  if (currentPiece.shape !== "O") {
+    // Temporarily rotate the current piece
+    const rotatedPiece: Piece = rotatePieceTemporarily(currentPiece);
+    // Check for collisions after the temporary rotation in all directions
+    const collisionLeft = isCollisionLeft(rotatedPiece, state.gameGrid);
+    const collisionRight = isCollisionRight(rotatedPiece, state.gameGrid);
+    const collisionDown = isCollisionDown(rotatedPiece, state.gameGrid);
+
+    if (!collisionLeft && !collisionRight && !collisionDown) {
+      // If no collisions in any direction, update the current piece in the state
+      return {
+        ...state,
+        currentPiece: rotatedPiece,
+      };
+    }
   }
-  // If there is a collision in any direction after rotation, return the current state
+  // If there is a collision or the piece is "O," return the current state
   return state;
 };
 
