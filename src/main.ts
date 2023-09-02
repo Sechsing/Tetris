@@ -60,32 +60,31 @@ const preparePieces = (): Piece[] => {
     style: "fill: green",
   });
   // Construct pieces with blocks
-  const createPiece = (shape: string, ...positions: [number, number][]) => ({
-    shape,
+  const createPiece = (...positions: [number, number][]) => ({
     static: false,
     cubeList: positions.map(pos => createCube(...pos)),
   });
-  const Opiece = createPiece("O", [5, 1], [6, 1], [5, 2], [6, 2]);
-  const Ipiece = createPiece("I", [6, 1], [6, 2], [6, 3], [6, 4]);
-  const Jpiece = createPiece("J", [4, 1], [5, 1], [6, 1], [6, 2]);
-  const Lpiece = createPiece("L", [4, 1], [5, 1], [6, 1], [4, 2]);
-  const Tpiece = createPiece("T", [4, 1], [5, 1], [6, 1], [5, 2]);
-  const Spiece = createPiece("S", [5, 1], [6, 1], [4, 2], [5, 2]);
-  const Zpiece = createPiece("Z", [4, 1], [5, 1], [5, 2], [6, 2]);
+  const Opiece = createPiece([5, 1], [6, 1], [5, 2], [6, 2]);
+  const Ipiece = createPiece([6, 1], [6, 2], [6, 3], [6, 4]);
+  const Jpiece = createPiece([4, 1], [5, 1], [6, 1], [6, 2]);
+  const Lpiece = createPiece([4, 1], [5, 1], [6, 1], [4, 2]);
+  const Tpiece = createPiece([4, 1], [5, 1], [6, 1], [5, 2]);
+  const Spiece = createPiece([5, 1], [6, 1], [4, 2], [5, 2]);
+  const Zpiece = createPiece([4, 1], [5, 1], [5, 2], [6, 2]);
   // Construct pieces with blocks
   const storedPieces: Piece[] = [Opiece]; //, Ipiece, Jpiece, Lpiece, Tpiece, Spiece, Zpiece
   return storedPieces;
 };
 
 /** 
- * Sets ups the current state.
+ * Gets a random piece using Math functions from a list of pieces.
  *
  * @param storedPieces A list of Pieces that are stored
  * @returns Piece 
  */
 const getRandomPiece = (storedPieces: Piece[]) => {
   const randomIndex = Math.floor(Math.random() * storedPieces.length);
-  return storedPieces[randomIndex];
+  return storedPieces[randomIndex]; 
 };
 
 /** State processing */
@@ -116,7 +115,6 @@ type CubeProps =  {
  * Provides an interface for pieces that consist of cubes
  */
 type Piece = {
-  shape: string,
   static: boolean,
   cubeList: CubeProps[],
 };
@@ -124,7 +122,12 @@ type Piece = {
 /** 
  * Create initial stored pieces
  */
-const initialStoredPieces = preparePieces();  
+const initialStoredPieces = preparePieces();
+
+/** 
+ * Create secondary stored pieces to prevent nextPiece from using the same piece as currentPiece
+ */
+const secondaryStoredPieces = preparePieces();
 
 const initialState: State = {
   gameEnd: false,
@@ -134,7 +137,7 @@ const initialState: State = {
   ),
   storedPieces: [...initialStoredPieces], // Clone the initial stored pieces
   currentPiece: getRandomPiece(initialStoredPieces), // Get a random piece from the initial stored pieces
-  nextPiece: getRandomPiece(initialStoredPieces),
+  nextPiece: getRandomPiece(secondaryStoredPieces), // Get a random piece from the secondary stored pieces
   level: 0,
   score: 0,
   highScore: 0,
@@ -346,9 +349,7 @@ const ScoreAdjustment = (gameGrid: CubeProps[][], score: number, highScore: numb
  * @returns True if the game is over, false otherwise.
  */
 const checkGameOver = (gameGrid: CubeProps[][]): boolean => {
-  const topRow = gameGrid[0];
-  const isGameOver = topRow.some(cubeProps => cubeProps !== null);
-  return isGameOver;
+  return gameGrid[0].some(cubeProps => cubeProps !== null);
 };
 
 /**
@@ -404,10 +405,10 @@ const checkAndReplacePiece = (currentState: State) => {
   if (!currentState.gameEnd && currentState.currentPiece.static) {
     // Update the list of available pieces
     const updatedStoredPieces = preparePieces();
-    // Get a random piece from the updated list of available pieces
-    const updatedNextPiece = getRandomPiece(updatedStoredPieces)
-    // Update the current piece with next piece
+    // Update current piece with next piece
     const updatedCurrentPiece = currentState.nextPiece;
+    // Get a random piece from the updated list of available pieces
+    const updatedNextPiece = getRandomPiece(updatedStoredPieces);
     return {
       ...currentState,
       currentPiece: updatedCurrentPiece,
@@ -438,9 +439,8 @@ const restartGame = (state: State): State => {
     currentPiece: getRandomPiece(initialStoredPieces), // Get a random piece from the initial stored pieces
     nextPiece: getRandomPiece(initialStoredPieces), // Get the next random piece
     level: 0,
-    score: 0, // Initialize the score to 0
+    score: 0,
   };
-  // Return the updated game state with initial values
   return { ...initialGameState };
 };
 
@@ -595,7 +595,7 @@ export function main() {
       cubeSvg.classList.add("cube"); // Add a class to identify the elements
       svg.appendChild(cubeSvg);
     });
-    // Render the gameGrid
+    // Render the cubes in the gameGrid
     s.gameGrid.forEach((row) => {
       row.forEach((cubeProps) => {
         if (cubeProps !== null) {
