@@ -550,7 +550,7 @@ export function main() {
       // Calculate the new tick rate based on the score
       const newTickRate = maxTickRate - (score / maxScore) * tickRateRange;
       // Ensure the new tick rate does not go below the minimum
-      const TickRate = Math.min(minTickRate, newTickRate)
+      const TickRate = Math.max(minTickRate, newTickRate)
       return interval(TickRate);
     })
   );
