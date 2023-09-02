@@ -279,7 +279,7 @@ const movePieceDown = (state: State): State => {
  * Rotates a Tetris piece clockwise around its center of rotation if no collision is detected.
  *
  * @param {Piece} piece - The piece to be rotated.
- * @returns {Piece} - The rotated piece (if no collision).
+ * @returns {Piece} - The rotated piece if there is no collision.
  */
 const rotatePieceTemporarily = (piece: Piece): Piece => {
   const rotatedPiece: Piece = { ...piece };
@@ -308,7 +308,7 @@ const rotatePieceTemporarily = (piece: Piece): Piece => {
  * Rotates a Tetris piece clockwise around its center of rotation if no collision is detected.
  *
  * @param {State} state - The current state of the game.
- * @returns {State} - The updated state after rotating the piece (if no collision).
+ * @returns {State} - The updated state after rotating the piece if there is no collision.
  */
 const rotatePiece = (state: State): State => {
   const currentPiece: Piece = state.currentPiece;
@@ -325,7 +325,7 @@ const rotatePiece = (state: State): State => {
       currentPiece: rotatedPiece,
     };
   }
-  // If there's a collision in any direction after rotation, return the current state
+  // If there is a collision in any direction after rotation, return the current state
   return state;
 };
 
@@ -587,11 +587,6 @@ export function main() {
 
   /** Observables */
 
-  // Map the "rotate" key press event to the rotatePiece function
-  const rotateAction$ = rotate$.pipe(
-    map(() => (state: State) => rotatePiece(state))
-  );
-
   // Track the score changes with an initial value of 0
   const scoreSubject = new BehaviorSubject<number>(0);
 
@@ -653,6 +648,11 @@ export function main() {
     });
   }
 
+  /**
+   * Renders the HUD to the canvas.
+   *
+   * @param s Current state
+   */
   const renderHUD = (s: State) => {
     // Render the next piece in the preview canvas
     const nextPiece = s.nextPiece;
@@ -680,30 +680,34 @@ export function main() {
     scoreSubject.next(s.score);
   };
 
+  // Higher-order function for mapping actions
+  const mapAction = (actionFn: (state: State) => State) => map(() => (state: State) => actionFn(state));
+
   // Observable that represents the game logic and user input processing.
   const source$ = merge(
     // When dynamicTick$ emits, map it to a function that advances the game state by one tick.
-    dynamicTick$.pipe(map(() => (state: State) => tick(state))),
+    dynamicTick$.pipe(mapAction(tick)),
     // When left$ emits, map it to move the current piece to the left.
-    left$.pipe(map(() => (state: State) => movePieceLeft(state))),
+    left$.pipe(mapAction(movePieceLeft)),
     // When right$ emits, map it to move the current piece to the right.
-    right$.pipe(map(() => (state: State) => movePieceRight(state))),
+    right$.pipe(mapAction(movePieceRight)),
     // When down$ emits, map it to move the current piece downward.
-    down$.pipe(map(() => (state: State) => movePieceDown(state))),
-    rotateAction$,
+    down$.pipe(mapAction(movePieceDown)),
+    // When rotate$ emits, map it to rotate the current piece.
+    rotate$.pipe(mapAction(rotatePiece)),
     // When restart$ emits, map it to restart the game.
-    restart$.pipe(map(() => (state: State) => restartGame(state)))
+    restart$.pipe(mapAction(restartGame))
   ).pipe(
     // Accumulate and update the game state based on the mapped functions.
     scan((s: State, action: (s: State) => State) => action(s), initialState)
   );
   // Subscribe to the source$ to react to changes in the game state.
   source$.subscribe((s: State) => {
-    // Update the game visuals on the canvas based on the current game state.
+    // Update the game visuals on the canvas based on game grid.
     renderTetris(s);
-    // Update the Heads-Up Display (HUD) to display game information.
+    // Update HUD to display game information.
     renderHUD(s);
-    // Show the 'gameover' element if the game has ended; otherwise, hide it.
+    // Show the gameover element if the game has ended; otherwise, hide it.
     if (s.gameEnd) {
       show(gameover);
     } else {
